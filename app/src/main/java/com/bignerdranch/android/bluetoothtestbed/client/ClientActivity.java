@@ -58,6 +58,7 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
     private Handler mHandler;
     private Handler mLogHandler;
     private Map<String, BluetoothDevice> mScanResults;
+    private Map<String, Double> DeviceDistances;
     private String extra_data;
     private boolean mConnected;
     private boolean mTimeInitialized;
@@ -70,7 +71,9 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
     int rssi;
     double second_distance;
     private BeaconManager beaconManager;
+    private int total_people;
     // Lifecycle
+
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,6 +87,7 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         requestPermissions(new String[] {Manifest.permission.ACCESS_FINE_LOCATION},2);
 
         mBinding = DataBindingUtil.setContentView(this, R.layout.activity_client);
+        startScan();
         @SuppressLint("HardwareIds")
         String deviceInfo = "Device Info"
                 + "\nName: " + mBluetoothAdapter.getName()
@@ -120,8 +124,8 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
         mBinding.serverListContainer.removeAllViews();
 
         mScanResults = new HashMap<>();
-
-        mScanCallback = new BtleScanCallback(mScanResults);
+        DeviceDistances = new HashMap<>();
+        mScanCallback = new BtleScanCallback(mScanResults,DeviceDistances);
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
@@ -170,16 +174,34 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
             return;
         }
         double first_distance = distanceMeasure(rssi,powerlvl);
-        Log.v(TAG,"rssi is "+ rssi);
-        Log.v(TAG,"POWERLVL IS "+ powerlvl);
-        Log.v(TAG,"distance is" + distanceMeasure(rssi,powerlvl));
-        Log.v(TAG,"second distance is "+ second_distance);
-        Toast.makeText(this,"distances are " + first_distance + "\t" + second_distance,Toast.LENGTH_LONG).show();
-        log("distances are " + first_distance + "\t" + second_distance);
-        log("rssi and powerlvl are " + rssi + "\t" + powerlvl);
+//        Log.v(TAG,"rssi is "+ rssi);
+//        Log.v(TAG,"POWERLVL IS "+ powerlvl);
+//        Log.v(TAG,"distance is" + distanceMeasure(rssi,powerlvl));
+//        Log.v(TAG,"second distance is "+ second_distance);
+//        Toast.makeText(this,"distances are " + first_distance + "\t," + second_distance,Toast.LENGTH_LONG).show();
+//        log("distances are " + first_distance + "\t" + second_distance);
+        log("Distance  =" + first_distance);
+        Toast.makeText(this,"distance = " + first_distance,Toast.LENGTH_LONG).show();
+
+//        log("rssi and powerlvl are " + rssi + "\t" + powerlvl);
 //        Toast.makeText(this,"rssi and powerlvl are " + rssi + "\t" + powerlvl,Toast.LENGTH_LONG).show();
 //        Log.v("abhi","name is " + extra_data);
 
+
+        if( first_distance <=3 ){
+            Toast.makeText(this,"Not maintaining Social Distance Parameters. You are " + (int)first_distance + "m away from somebody",Toast.LENGTH_LONG).show();
+        }
+
+        if(first_distance >=3 && first_distance <= 6){
+            Toast.makeText(this,"Not safe. A person is " + (int)first_distance + "m away",Toast.LENGTH_LONG).show();
+        }
+
+        if(first_distance >= 6){
+            Toast.makeText(this,"Maintaining social distance parameters",Toast.LENGTH_LONG).show();
+        }
+
+        total_people = mScanResults.size();
+        log("total people aroudn you  equals to" + total_people);
         for (String deviceAddress : mScanResults.keySet()) {
             Log.v("address",deviceAddress);
             String ServerAddress = "48:01:C5:9E:D8:1D";
@@ -202,6 +224,13 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
                 binding.connectGattServerButton.setOnClickListener(v -> connectDevice(device));
             }
         }
+
+
+
+        for (double dist : DeviceDistances.values()){
+            log("distance = " + dist);
+        }
+
     }
 
     private boolean hasPermissions() {
@@ -233,9 +262,12 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
     private class BtleScanCallback extends ScanCallback {
 
         private Map<String, BluetoothDevice> mScanResults;
+        private Map<String, Double>  DeviceDistances;
 
-        BtleScanCallback(Map<String, BluetoothDevice> scanResults) {
+
+        BtleScanCallback(Map<String, BluetoothDevice> scanResults, Map<String,Double> deviceDistances ) {
             mScanResults = scanResults;
+            DeviceDistances = deviceDistances;
         }
 
         @Override
@@ -260,24 +292,19 @@ public class ClientActivity extends AppCompatActivity implements GattClientActio
 //            result.
             rssi = result.getRssi();
             powerlvl = mscanRecord.getTxPowerLevel();
-            powerlvl = powerlvl-41;
+            powerlvl = -63;
+            Double distance_device = distanceMeasure(rssi,powerlvl);
             byte [] recordinbytes = mscanRecord.getBytes();
-
-//            log("bytes stuff" + recordinbytes.length);
-//            mscanRecord.
-//            Log.v(TAG,);
-//            byte[] data =  mscanRecord.getManufacturerSpecificData(0);
-//            String device_name =  new String(data, StandardCharsets.UTF_8);
-//            extra_data = device_name;
-
 
             BluetoothDevice device = result.getDevice();
             String deviceAddress = device.getAddress();
             mScanResults.put(deviceAddress, device);
+            DeviceDistances.put(deviceAddress,distance_device);
         }
     }
 
     // Gatt connection
+
 
     private void connectDevice(BluetoothDevice device) {
         log("Connecting to " + device.getAddress());
